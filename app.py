@@ -148,47 +148,59 @@ def get_stream(type, id):
         
     parts = id.split(':')
     slug = parts[0].replace('kkp_', '')
-    
-    # Mặc định lấy tập 1 nếu là phim lẻ
     target_ep = str(parts[2]) if len(parts) > 2 else "1"
     
-    url = f"{API_BASE_URL}/phim/{slug}"
     streams = []
     
+    # 1. LẤY LINK TỪ KKPHIM
     try:
-        resp = requests.get(url, timeout=10).json()
+        kk_url = f"{API_BASE_URL}/phim/{slug}"
+        resp = requests.get(kk_url, timeout=5).json()
         episodes = resp.get('episodes', [])
-        
         for server in episodes:
             server_name = server.get('server_name', 'VIP')
-            server_data = server.get('server_data', [])
-            
-            for ep in server_data:
-                # Tìm đúng tập phim
+            for ep in server.get('server_data', []):
                 ep_num_str = str(ep.get('name', '1'))
                 try:
-                    # Ép kiểu về số nguyên rồi chuyển lại thành chuỗi để loại bỏ số 0 ở đầu (VD: "01" -> "1")
                     extracted_num = str(int(re.search(r'\d+', ep_num_str).group()))
                 except:
                     extracted_num = "1"
                 
-                # Trả link m3u8 nếu đúng tập (hoặc nếu là phim lẻ)
                 if extracted_num == target_ep or type == "movie":
-                    link_m3u8 = ep.get('link_m3u8')
-                    if link_m3u8:
+                    if ep.get('link_m3u8'):
                         streams.append({
-                            "title": f"KKPhim [{server_name}]\n{ep.get('name', 'Full')}",
-                            "url": link_m3u8,
-                            "behaviorHints": {
-                                "notWebReady": False,
-                                "bingeGroup": f"kkphim-{server_name}"
-                            }
+                            "title": f"🎬 KKPhim [{server_name}]\n{ep.get('name', 'Full')}",
+                            "url": ep.get('link_m3u8'),
+                            "behaviorHints": {"bingeGroup": f"kkphim-{server_name}"}
                         })
-                    # Nếu là phim lẻ thì chỉ lấy của tập đầu tiên tìm thấy rồi break
                     if type == "movie": break
-                    
     except Exception as e:
-        print("Error fetching stream:", e)
+        print("Lỗi lấy KKPhim:", e)
+
+    # 2. LẤY LINK TỪ NGUONC
+    try:
+        nguonc_url = f"https://phim.nguonc.com/api/film/{slug}"
+        resp_nc = requests.get(nguonc_url, timeout=5).json()
+        episodes_nc = resp_nc.get('movie', {}).get('episodes', [])
+        for server in episodes_nc:
+            server_name = server.get('server_name', 'VIP')
+            for ep in server.get('items', []):
+                ep_num_str = str(ep.get('name', '1'))
+                try:
+                    extracted_num = str(int(re.search(r'\d+', ep_num_str).group()))
+                except:
+                    extracted_num = "1"
+                
+                if extracted_num == target_ep or type == "movie":
+                    if ep.get('m3u8'):
+                        streams.append({
+                            "title": f"🔥 NguonC [{server_name}]\n{ep.get('name', 'Full')}",
+                            "url": ep.get('m3u8'),
+                            "behaviorHints": {"bingeGroup": f"nguonc-{server_name}"}
+                        })
+                    if type == "movie": break
+    except Exception as e:
+        print("Lỗi lấy NguonC:", e)
         
     return jsonify({"streams": streams})
 
